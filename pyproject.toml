@@ -1,0 +1,174 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "retainit"
+version = "0.1.0"
+description = "High-performance function caching library for Python"
+readme = "README.md"
+authors = [{name = "Your Name", email = "your.email@example.com"}]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+]
+keywords = ["cache", "caching", "function", "performance", "decorator", "async"]
+requires-python = ">=3.7"
+# Core dependencies - keep minimal
+dependencies = [
+    "typing-extensions>=4.0.0; python_version < '3.10'",
+]
+
+[project.optional-dependencies]
+# Backend-specific dependencies
+redis = ["redis>=4.0.0"]
+redis-cluster = ["redis>=4.0.0"]
+aws = ["aioboto3>=9.0.0", "s3fs>=2023.1.0"]
+
+# Data format support
+pandas = ["pandas>=1.3.0"]
+numpy = ["numpy>=1.20.0"]
+polars = ["polars>=0.15.0"]
+arrow = ["pyarrow>=7.0.0"]
+msgpack = ["msgpack>=1.0.0"]
+data = ["pandas>=1.3.0", "numpy>=1.20.0", "polars>=0.15.0", "pyarrow>=7.0.0"]
+
+# Environment support
+dotenv = ["python-dotenv>=0.19.0"]
+yaml = ["PyYAML>=6.0"]
+toml = ["tomli>=2.0.0; python_version < '3.11'"]
+
+# Development dependencies
+dev = [
+    "black>=22.0.0",
+    "isort>=5.10.0",
+    "flake8>=4.0.0",
+    "mypy>=0.950",
+    "bandit>=1.7.0",
+    "safety>=2.0.0",
+]
+
+# Testing dependencies
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=3.0.0",
+    "pytest-asyncio>=0.18.0",
+    "pytest-benchmark>=3.4.0",
+    "hypothesis>=6.0.0",
+    "freezegun>=1.2.0",
+    "moto>=4.0.0",
+    "fakeredis>=2.0.0",
+]
+
+# Convenience groups
+backends = ["redis", "aws"]
+formats = ["pandas", "numpy", "polars", "arrow", "msgpack"]
+frameworks = ["django", "fastapi", "flask"]
+config = ["dotenv", "yaml", "toml"]
+
+# Complete installation
+all = [
+    "redis>=4.0.0",
+    "aioboto3>=9.0.0", "s3fs>=2023.1.0",
+    "pandas>=1.3.0", "numpy>=1.20.0", "polars>=0.15.0", "pyarrow>=7.0.0",
+    "msgpack>=1.0.0",
+    "python-dotenv>=0.19.0", "PyYAML>=6.0", 
+    "tomli>=2.0.0; python_version < '3.11'",
+]
+
+[project.urls]
+Homepage = "https://github.com/yourusername/retainit"
+Documentation = "https://retainit.readthedocs.io"
+"Bug Tracker" = "https://github.com/yourusername/retainit/issues"
+"Source Code" = "https://github.com/yourusername/retainit"
+
+[tool.setuptools]
+packages = ["retainit"]
+package-dir = {"" = "src"}
+
+[tool.black]
+line-length = 88
+target-version = ['py37', 'py38', 'py39', 'py310', 'py311']
+include = '\.pyi?'
+
+
+[tool.isort]
+profile = "black"
+line_length = 88
+multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.7"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+addopts = "--cov=retainit --cov-report=term-missing --cov-report=xml"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["retainit"]
+omit = ["tests/*", "docs/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "if TYPE_CHECKING:",
+]
+
+[tool.ruff]
+# Enable the formatter
+line-length = 88
+target-version = "py311"
+select = ["E", "F", "W", "I", "N", "B", "C4", "ANN", "D"]
+ignore = ["D203", "D213"]
+
+# Automatically add newlines at end of file
+fix = true
+extend-select = ["E", "F", "W", "I", "N", "B", "C4", "UP", "YTT", "S", "BLE", "A", "COM", "C90", "RET"]
+
+[tool.ruff.format]
+# Format configuration
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ruff.isort]
+known-first-party = ["retainit"]
+
+[tool.ruff.flake8-annotations]
+mypy-init-return = true
+
+[tool.ruff.flake8-quotes]
+docstring-quotes = "double"
+
+[tool.ruff.mccabe]
+max-complexity = 10
+
+[tool.retainit]
+backend = "memory"
+ttl = 3600
+base_path = ".cache/function_resp"
+compression = false
+
+[tool.retainit.metrics]
+enabled = false
+backend = "prometheus"
+namespace = "retainit"

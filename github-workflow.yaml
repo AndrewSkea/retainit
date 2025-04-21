@@ -1,0 +1,289 @@
+# This workflow handles the CI/CD pipeline for retainit
+
+name: retainit CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run nightly tests at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: pip
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+          
+      - name: Lint with flake8
+        run: flake8 src tests
+        
+      - name: Type check with mypy
+        run: mypy src
+        
+      - name: Check imports with isort
+        run: isort --check src tests
+        
+      - name: Check format with black
+        run: black --check src tests
+        
+      - name: Check for security issues with bandit
+        run: bandit -r src
+        
+      - name: Check for vulnerabilities with safety
+        run: safety check
+
+  test:
+    name: Test Python ${{ matrix.python-version }} on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    needs: lint
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.7', '3.8', '3.9', '3.10', '3.11']
+        
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v4
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev,test]
+          
+      - name: Run unit tests
+        run: pytest tests/unit -v --cov=retainit --cov-report=xml
+        
+      - name: Run integration tests with mocks
+        run: pytest tests/integration -v --cov=retainit --cov-append --cov-report=xml
+        
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          flags: unittests
+          fail_ci_if_error: false
+
+  integration-backends:
+    name: Integration tests with real backends
+    runs-on: ubuntu-latest
+    needs: test
+    # Only run on main branch, tags, and nightly builds to save resources
+    if: github.event_name == 'push' || github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/')
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+      
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: pip
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev,test,redis,aws,all]
+          
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-east-1
+          
+      - name: Run Redis integration tests
+        run: pytest tests/integration/backends/test_redis_integration.py -v
+        
+      - name: Run S3 integration tests
+        if: github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/')
+        run: pytest tests/integration/backends/test_s3_integration.py -v
+
+  performance:
+    name: Performance benchmarks
+    runs-on: ubuntu-latest
+    needs: test
+    # Only run on main branch, tags, and nightly builds to save resources
+    if: github.event_name == 'push' || github.event_name == 'schedule' || startsWith(github.ref, 'refs/tags/')
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: pip
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev,test,all]
+          
+      - name: Run performance benchmarks
+        run: pytest tests/performance -v --benchmark-json=benchmark.json
+        
+      - name: Store benchmark result
+        uses: benchmark-action/github-action-benchmark@v1
+        with:
+          tool: 'pytest'
+          output-file-path: benchmark.json
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          auto-push: true
+          # Show alert with commit comment on detecting possible performance regression
+          alert-threshold: '200%'
+          comment-on-alert: true
+          fail-on-alert: true
+
+  build:
+    name: Build package
+    runs-on: ubuntu-latest
+    needs: [test, lint]
+    
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Need all history for versioning
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: pip
+          
+      - name: Install build dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install build wheel setuptools twine
+          
+      - name: Build package
+        run: python -m build
+        
+      - name: Check package
+        run: twine check dist/*
+        
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: dist
+          path: dist/
+          retention-days: 7
+
+  publish:
+    name: Publish package
+    runs-on: ubuntu-latest
+    needs: [build, integration-backends, performance]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download package artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: dist
+          path: dist/
+          
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: pip
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install twine
+          
+      - name: Publish to PyPI
+        env:
+          TWINE_USERNAME: ${{ secrets.PYPI_USERNAME }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_PASSWORD }}
+        run: twine upload --skip-existing dist/*
+        
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: dist/*
+          draft: false
+          prerelease: ${{ contains(github.ref, 'alpha') || contains(github.ref, 'beta') || contains(github.ref, 'rc') }}
+          generate_release_notes: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  nightly:
+    name: Nightly tests
+    runs-on: ubuntu-latest
+    needs: [lint, test]
+    if: github.event_name == 'schedule'
+    
+    services:
+      redis:
+        image: redis
+        ports:
+          - 6379:6379
+      
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+          cache: pip
+          
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev,test,all]
+          
+      - name: Run all tests
+        run: pytest tests -v --cov=retainit --cov-report=xml
+        
+      - name: Check 100% test coverage
+        run: |
+          python -c "import sys, xml.etree.ElementTree as ET; \
+          tree = ET.parse('coverage.xml'); \
+          root = tree.getroot(); \
+          coverage = float(root.attrib['line-rate']) * 100; \
+          print(f'Code coverage: {coverage:.2f}%'); \
+          sys.exit(0 if coverage >= 99.9 else 1)"
+          
+      - name: Run long-running tests
+        run: pytest tests/system/test_long_running.py -v
+        
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: ./coverage.xml
+          flags: nightly
+          fail_ci_if_error: false

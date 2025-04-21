@@ -1,0 +1,38 @@
+{
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv/Scripts/python",
+  "[python]": {
+    "editor.formatOnSave": true,
+    "editor.codeActionsOnSave": {
+      "source.organizeImports": "always",
+      "source.fixAll": "explicit",
+      "source.fixAll.ruff": "explicit",
+      "source.organizeImports.ruff": "explicit"
+    }
+  },
+  "editor.defaultFormatter": "charliermarsh.ruff",
+  "editor.rulers": [91],
+  "ruff.importStrategy": "fromEnvironment",
+  "ruff.codeAction.fixViolation": {
+    "enable": true
+  },
+  "ruff.interpreter": ["${workspaceFolder}/.venv/Scripts/python"],
+  "ruff.organizeImports": true,
+  "editor.formatOnSave": true,
+  "python.analysis.typeCheckingMode": "basic",
+  "python.analysis.diagnosticMode": "workspace",
+  "mypy-type-checker.ignorePatterns": ["build/.*", "dist/.*", "tests/*"],
+  "files.exclude": {
+    ".ruff_cache": true,
+    ".pytest_cache": true,
+    ".mypy_cache": true,
+    "**/*.pyc": { "when": "$(basename).py" },
+    "**/__pycache__": true
+  },
+  "mypy-type-checker.reportingScope": "workspace",
+  "python.testing.pytestArgs": ["tests"],
+  "python.testing.unittestEnabled": false,
+  "python.testing.pytestEnabled": true,
+  "python.analysis.indexing": true,
+  "python.analysis.autoImportCompletions": true,
+  "taipyStudio.gUI.elementsFilePaths": []
+}
