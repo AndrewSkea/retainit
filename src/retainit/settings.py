@@ -7,7 +7,7 @@ options for retainit and handles validation and conversion of values.
 import logging
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Dict, List, Optional, Set, Tuple, Type, TypeVar, Union, cast
+from typing import cast
 
 from .config import CacheBackendType, Config, config
 
@@ -44,10 +44,10 @@ class RedisSettings:
     """Redis backend settings."""
 
     url: str
-    password: Optional[str] = None
+    password: str | None = None
     ssl: bool = False
-    cert_reqs: Optional[str] = None
-    ca_certs: Optional[str] = None
+    cert_reqs: str | None = None
+    ca_certs: str | None = None
 
 
 @dataclass
@@ -56,7 +56,7 @@ class S3Settings:
 
     bucket: str
     prefix: str = "retainit"
-    region: Optional[str] = None
+    region: str | None = None
 
 
 @dataclass
@@ -64,7 +64,7 @@ class DynamoDBSettings:
     """DynamoDB backend settings."""
 
     table: str
-    region: Optional[str] = None
+    region: str | None = None
 
 
 @dataclass
@@ -72,7 +72,7 @@ class MetricsSettings:
     """Metrics settings."""
 
     enabled: bool = False
-    backend: Optional[MetricsBackendType] = None
+    backend: MetricsBackendType | None = None
     namespace: str = "retainit"
 
 
@@ -108,19 +108,20 @@ class Settings:
         encryption_key: Key for encrypting cached values.
         circuit_breaker: Circuit breaker settings.
         serializer: Default serializer to use.
+
     """
 
     backend: CacheBackendType = CacheBackendType.MEMORY
-    ttl: Optional[int] = 3600
+    ttl: int | None = 3600
     base_path: str = ".cache/function_resp"
     compression: bool = False
     key_prefix: str = "retainit"
-    max_size: Optional[int] = None
+    max_size: int | None = None
 
     # Backend-specific settings
-    redis: Optional[RedisSettings] = None
-    s3: Optional[S3Settings] = None
-    dynamodb: Optional[DynamoDBSettings] = None
+    redis: RedisSettings | None = None
+    s3: S3Settings | None = None
+    dynamodb: DynamoDBSettings | None = None
 
     # Metrics settings
     metrics: MetricsSettings = field(default_factory=MetricsSettings)
@@ -130,16 +131,18 @@ class Settings:
 
     # Security settings
     encryption: bool = False
-    encryption_key: Optional[str] = None
+    encryption_key: str | None = None
 
     # Reliability settings
-    circuit_breaker: CircuitBreakerSettings = field(default_factory=CircuitBreakerSettings)
+    circuit_breaker: CircuitBreakerSettings = field(
+        default_factory=CircuitBreakerSettings
+    )
 
     # Serialization settings
     serializer: SerializerType = SerializerType.AUTO
 
     @classmethod
-    def from_config(cls, config_instance: Optional[Config] = None) -> "Settings":
+    def from_config(cls, config_instance: Config | None = None) -> "Settings":
         """Create a Settings instance from a Config object.
 
         Args:
@@ -147,6 +150,7 @@ class Settings:
 
         Returns:
             A new Settings instance with values from the config.
+
         """
         if config_instance is None:
             config_instance = config
@@ -160,15 +164,17 @@ class Settings:
 
         # Create the settings object
         settings = cls(
-            backend=CacheBackendType(config_dict.get("backend", CacheBackendType.MEMORY.value)),
-            ttl=cast(Optional[int], config_dict.get("ttl")),
+            backend=CacheBackendType(
+                config_dict.get("backend", CacheBackendType.MEMORY.value),
+            ),
+            ttl=cast(int | None, config_dict.get("ttl")),
             base_path=cast(str, config_dict.get("base_path", ".cache/function_resp")),
             compression=cast(bool, config_dict.get("compression", False)),
             key_prefix=cast(str, config_dict.get("key_prefix", "retainit")),
-            max_size=cast(Optional[int], config_dict.get("max_size")),
+            max_size=cast(int | None, config_dict.get("max_size")),
             log_level=cast(str, config_dict.get("log_level", "WARNING")),
             encryption=cast(bool, config_dict.get("encryption", False)),
-            encryption_key=cast(Optional[str], config_dict.get("encryption_key")),
+            encryption_key=cast(str | None, config_dict.get("encryption_key")),
         )
 
         # Set backend-specific settings
@@ -176,10 +182,10 @@ class Settings:
         if redis_url:
             settings.redis = RedisSettings(
                 url=cast(str, redis_url),
-                password=cast(Optional[str], config_dict.get("redis_password")),
+                password=cast(str | None, config_dict.get("redis_password")),
                 ssl=cast(bool, config_dict.get("redis_ssl", False)),
-                cert_reqs=cast(Optional[str], config_dict.get("redis_cert_reqs")),
-                ca_certs=cast(Optional[str], config_dict.get("redis_ca_certs")),
+                cert_reqs=cast(str | None, config_dict.get("redis_cert_reqs")),
+                ca_certs=cast(str | None, config_dict.get("redis_ca_certs")),
             )
 
         s3_bucket = config_dict.get("s3_bucket")
@@ -187,14 +193,14 @@ class Settings:
             settings.s3 = S3Settings(
                 bucket=cast(str, s3_bucket),
                 prefix=cast(str, config_dict.get("s3_prefix", "retainit")),
-                region=cast(Optional[str], config_dict.get("s3_region")),
+                region=cast(str | None, config_dict.get("s3_region")),
             )
 
         dynamodb_table = config_dict.get("dynamodb_table")
         if dynamodb_table:
             settings.dynamodb = DynamoDBSettings(
                 table=cast(str, dynamodb_table),
-                region=cast(Optional[str], config_dict.get("dynamodb_region")),
+                region=cast(str | None, config_dict.get("dynamodb_region")),
             )
 
         # Set metrics settings
@@ -232,22 +238,29 @@ class Settings:
 
         Raises:
             ValueError: If the settings are invalid.
+
         """
         # Validate backend requirements
         if self.backend == CacheBackendType.REDIS and not self.redis:
             raise ValueError("Redis settings must be provided when using Redis backend")
-        elif self.backend == CacheBackendType.S3 and not self.s3:
+        if self.backend == CacheBackendType.S3 and not self.s3:
             raise ValueError("S3 settings must be provided when using S3 backend")
-        elif self.backend == CacheBackendType.DYNAMODB and not self.dynamodb:
-            raise ValueError("DynamoDB settings must be provided when using DynamoDB backend")
+        if self.backend == CacheBackendType.DYNAMODB and not self.dynamodb:
+            raise ValueError(
+                "DynamoDB settings must be provided when using DynamoDB backend",
+            )
 
         # Validate metrics settings
         if self.metrics.enabled and not self.metrics.backend:
-            raise ValueError("Metrics backend must be specified when metrics are enabled")
+            raise ValueError(
+                "Metrics backend must be specified when metrics are enabled"
+            )
 
         # Validate encryption settings
         if self.encryption and not self.encryption_key:
-            raise ValueError("Encryption key must be specified when encryption is enabled")
+            raise ValueError(
+                "Encryption key must be specified when encryption is enabled"
+            )
 
         # Validate TTL
         if self.ttl is not None and self.ttl <= 0:
@@ -267,23 +280,3 @@ class Settings:
 
 # Global settings instance
 settings = Settings.from_config()
-
-
-def init_settings(**kwargs: Any) -> Settings:
-    """Initialize the global settings with custom values.
-
-    Args:
-        **kwargs: Custom settings values.
-
-    Returns:
-        The updated settings instance.
-    """
-    global settings
-
-    # Initialize the config with the provided values
-    config.init(**kwargs)
-
-    # Create new settings from the updated config
-    settings = Settings.from_config()
-
-    return settings

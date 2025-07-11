@@ -4,12 +4,14 @@
     "editor.formatOnSave": true,
     "editor.codeActionsOnSave": {
       "source.organizeImports": "always",
-      "source.fixAll": "explicit",
-      "source.fixAll.ruff": "explicit",
-      "source.organizeImports.ruff": "explicit"
-    }
+      "source.fixAll": "always",
+      "source.fixAll.ruff": "always",
+      "source.organizeImports.ruff": "always",
+      "autoImportCompletions": "always",
+      "organizeImports": "always"
+    },
+    "editor.defaultFormatter": "charliermarsh.ruff"
   },
-  "editor.defaultFormatter": "charliermarsh.ruff",
   "editor.rulers": [91],
   "ruff.importStrategy": "fromEnvironment",
   "ruff.codeAction.fixViolation": {
@@ -17,6 +19,7 @@
   },
   "ruff.interpreter": ["${workspaceFolder}/.venv/Scripts/python"],
   "ruff.organizeImports": true,
+  "ruff.fixAll": true,
   "editor.formatOnSave": true,
   "python.analysis.typeCheckingMode": "basic",
   "python.analysis.diagnosticMode": "workspace",

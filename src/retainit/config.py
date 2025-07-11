@@ -18,14 +18,14 @@ import os
 import sys
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, TypeVar, Union, cast
+from typing import Any, TypeVar, Union, cast
 
 # Setup logging
 logger = logging.getLogger("retainit.config")
 
 # Define types
-ConfigValue = Union[str, int, float, bool, None, Dict[str, Any], List[Any]]
-ConfigDict = Dict[str, ConfigValue]
+ConfigValue = Union[str, int, float, bool, None, dict[str, Any], list[Any]]
+ConfigDict = dict[str, ConfigValue]
 T = TypeVar("T")
 
 
@@ -77,6 +77,7 @@ class Config:
     Attributes:
         _config: Dictionary containing the current configuration values.
         _sources: Dictionary tracking where each config value came from.
+
     """
 
     # Default configuration values
@@ -111,16 +112,16 @@ class Config:
     def __init__(self) -> None:
         """Initialize a new Config instance with default values."""
         self._config: ConfigDict = self._defaults.copy()
-        self._sources: Dict[str, ConfigSource] = {
-            k: ConfigSource.DEFAULT for k in self._defaults
-        }
+        self._sources: dict[str, ConfigSource] = dict.fromkeys(
+            self._defaults, ConfigSource.DEFAULT
+        )
         self._initialized: bool = False
 
     def init(
         self,
-        config_file: Optional[str] = None,
-        env_file: Optional[str] = None,
-        profile: Optional[str] = None,
+        config_file: str | None = None,
+        env_file: str | None = None,
+        profile: str | None = None,
         **kwargs: Any,
     ) -> None:
         """Initialize the configuration from all sources.
@@ -130,6 +131,7 @@ class Config:
             env_file: Optional path to a .env file to load.
             profile: Optional profile name to use.
             **kwargs: Additional configuration values to set programmatically.
+
         """
         if self._initialized:
             logger.warning("Configuration already initialized, re-initializing")
@@ -175,6 +177,7 @@ class Config:
         Raises:
             ConfigFileNotFound: If the specified .env file is not found.
             ConfigFileParseError: If the .env file cannot be parsed.
+
         """
         env_path = Path(env_file_path)
         if not env_path.exists():
@@ -186,7 +189,7 @@ class Config:
                 from dotenv import load_dotenv
             except ImportError:
                 logger.warning(
-                    "python-dotenv package not installed, cannot load .env file"
+                    "python-dotenv package not installed, cannot load .env file",
                 )
                 return
 
@@ -208,6 +211,7 @@ class Config:
         Raises:
             ConfigFileNotFound: If the specified config file is not found.
             ConfigFileParseError: If the config file cannot be parsed.
+
         """
         file_path = Path(config_file_path)
         if not file_path.exists():
@@ -218,17 +222,17 @@ class Config:
             config_data: ConfigDict = {}
 
             if suffix == ".json":
-                with open(file_path, "r") as f:
+                with open(file_path) as f:
                     config_data = json.load(f)
             elif suffix in (".yaml", ".yml"):
                 try:
                     import yaml
 
-                    with open(file_path, "r") as f:
+                    with open(file_path) as f:
                         config_data = yaml.safe_load(f)
                 except ImportError:
                     logger.warning(
-                        "PyYAML package not installed, cannot load YAML config file"
+                        "PyYAML package not installed, cannot load YAML config file",
                     )
                     return
             elif suffix == ".toml":
@@ -244,12 +248,12 @@ class Config:
                             config_data = toml_data["retainit"]
                 except ImportError:
                     logger.warning(
-                        "tomli package not installed, cannot load TOML config file"
+                        "tomli package not installed, cannot load TOML config file",
                     )
                     return
             else:
                 raise ConfigFileParseError(
-                    f"Unsupported config file format: {suffix} (supported: .json, .yaml, .yml, .toml)"
+                    f"Unsupported config file format: {suffix} (supported: .json, .yaml, .yml, .toml)",
                 )
 
             # Handle the case where config might be nested under a 'retainit' key
@@ -321,7 +325,12 @@ class Config:
             "encryption",
             "circuit_breaker",
         }
-        int_keys = {"ttl", "max_size", "circuit_breaker_threshold", "circuit_breaker_timeout"}
+        int_keys = {
+            "ttl",
+            "max_size",
+            "circuit_breaker_threshold",
+            "circuit_breaker_timeout",
+        }
         float_keys = set()  # For potential future float config options
 
         # Get all environment variables with RETAINIT_ prefix
@@ -343,7 +352,7 @@ class Config:
                         typed_value = int(value)
                     except ValueError:
                         logger.warning(
-                            f"Invalid integer value for {key}: {value}, ignoring"
+                            f"Invalid integer value for {key}: {value}, ignoring",
                         )
                         continue
                 elif config_key in float_keys:
@@ -351,7 +360,7 @@ class Config:
                         typed_value = float(value)
                     except ValueError:
                         logger.warning(
-                            f"Invalid float value for {key}: {value}, ignoring"
+                            f"Invalid float value for {key}: {value}, ignoring",
                         )
                         continue
                 elif value.lower() == "none":
@@ -372,6 +381,7 @@ class Config:
 
         Raises:
             ValueError: If the profile does not exist in the configuration.
+
         """
         # Check if profiles are defined in the config
         profiles = self._config.get("profiles")
@@ -387,12 +397,15 @@ class Config:
         self._update_from_dict(cast(ConfigDict, profile), ConfigSource.CONFIG_FILE)
         logger.debug(f"Applied profile: {profile_name}")
 
-    def _update_from_dict(self, config_dict: Dict[str, Any], source: ConfigSource) -> None:
+    def _update_from_dict(
+        self, config_dict: dict[str, Any], source: ConfigSource
+    ) -> None:
         """Update the configuration from a dictionary.
 
         Args:
             config_dict: Dictionary containing configuration values.
             source: The source of the configuration values.
+
         """
         for key, value in config_dict.items():
             # Skip unknown keys
@@ -401,7 +414,12 @@ class Config:
                 continue
 
             # Allow nested backend-specific configuration
-            if isinstance(value, dict) and key in ("redis", "s3", "dynamodb", "metrics"):
+            if isinstance(value, dict) and key in (
+                "redis",
+                "s3",
+                "dynamodb",
+                "metrics",
+            ):
                 for sub_key, sub_value in value.items():
                     full_key = f"{key}_{sub_key}"
                     if full_key in self._defaults:
@@ -409,14 +427,18 @@ class Config:
                         self._sources[full_key] = source
             else:
                 # Handle environment variable expansion for string values
-                if isinstance(value, str) and value.startswith("${") and value.endswith("}"):
+                if (
+                    isinstance(value, str)
+                    and value.startswith("${")
+                    and value.endswith("}")
+                ):
                     env_var = value[2:-1]
                     env_value = os.environ.get(env_var)
                     if env_value is not None:
                         value = env_value
                     else:
                         logger.warning(
-                            f"Environment variable {env_var} referenced in config not found"
+                            f"Environment variable {env_var} referenced in config not found",
                         )
 
                 # Store the config value and its source
@@ -430,6 +452,7 @@ class Config:
 
         Raises:
             ValueError: If the configuration is invalid.
+
         """
         # Validate backend
         backend = self._config.get("backend")
@@ -446,37 +469,41 @@ class Config:
         elif backend == CacheBackendType.DYNAMODB.value:
             if not self._config.get("dynamodb_table"):
                 raise ValueError(
-                    "DynamoDB table must be specified when using DynamoDB backend"
+                    "DynamoDB table must be specified when using DynamoDB backend",
                 )
 
         # Validate metrics configuration
-        if self._config.get("enable_metrics") and not self._config.get("metrics_backend"):
+        if self._config.get("enable_metrics") and not self._config.get(
+            "metrics_backend"
+        ):
             raise ValueError(
-                "Metrics backend must be specified when metrics are enabled"
+                "Metrics backend must be specified when metrics are enabled",
             )
 
         # Validate encryption configuration
         if self._config.get("encryption") and not self._config.get("encryption_key"):
-            raise ValueError("Encryption key must be specified when encryption is enabled")
+            raise ValueError(
+                "Encryption key must be specified when encryption is enabled"
+            )
 
     def _setup_logging(self) -> None:
         """Configure the logger based on the log_level setting."""
         log_level_str = str(self._config.get("log_level", "WARNING")).upper()
         log_level = getattr(logging, log_level_str, logging.WARNING)
-        
+
         # Configure the retainit logger
         logger.setLevel(log_level)
-        
+
         # If no handlers are configured, add a default handler
         if not logger.handlers and not logging.root.handlers:
             handler = logging.StreamHandler(sys.stdout)
             formatter = logging.Formatter(
-                "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+                "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
             )
             handler.setFormatter(formatter)
             logger.addHandler(handler)
 
-    def get(self, key: str, default: Optional[T] = None) -> Union[ConfigValue, T]:
+    def get(self, key: str, default: T | None = None) -> ConfigValue | T:
         """Get a configuration value by key.
 
         Args:
@@ -485,6 +512,7 @@ class Config:
 
         Returns:
             The configuration value, or the default if the key is not found.
+
         """
         return self._config.get(key, default)
 
@@ -493,10 +521,11 @@ class Config:
 
         Returns:
             A dictionary containing all configuration values.
+
         """
         return self._config.copy()
 
-    def get_source(self, key: str) -> Optional[ConfigSource]:
+    def get_source(self, key: str) -> ConfigSource | None:
         """Get the source of a configuration value.
 
         Args:
@@ -504,6 +533,7 @@ class Config:
 
         Returns:
             The source of the configuration value, or None if the key is not found.
+
         """
         return self._sources.get(key)
 
@@ -516,13 +546,14 @@ class Config:
 
         Raises:
             ValueError: If the key is not a known configuration option.
+
         """
         if key not in self._defaults and key != "profiles":
             raise ValueError(f"Unknown configuration key: {key}")
 
         self._config[key] = value
         self._sources[key] = ConfigSource.PROGRAMMATIC
-        
+
         # If changing backend or related settings, re-validate
         if key in ("backend", "redis_url", "s3_bucket", "dynamodb_table"):
             self._validate()
@@ -532,6 +563,7 @@ class Config:
 
         Returns:
             True if the configuration has been initialized, False otherwise.
+
         """
         return self._initialized
 
